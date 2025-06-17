@@ -6,7 +6,7 @@ import { useAuthStore } from "src/stores/auth";
 
 export const isAuthenticated = () => {
   const auth = useAuthStore();
-  return !!auth?.authData?.user;
+  return auth.isAuthenticated;
 };
 
 /*

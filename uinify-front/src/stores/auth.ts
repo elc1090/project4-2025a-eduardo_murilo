@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 
 const defaultData = {
   user: null,
+  authType: null, // 'traditional' or 'google'
+  googleCredential: null,
 };
 
 export const getAuthStorage = () => {
@@ -25,10 +27,39 @@ export const useAuthStore = defineStore("UInify-auth", {
     storeAuthDataGetter(state) {
       return state.authData;
     },
+    isAuthenticated(state) {
+      return !!state.authData?.user;
+    },
+    authType(state) {
+      return state.authData?.authType;
+    },
+    isGoogleAuth(state) {
+      return state.authData?.authType === 'google';
+    },
+    userInfo(state) {
+      return state.authData?.user;
+    },
   },
   actions: {
     storageAuthSave(auth) {
       this.authData = auth;
+      localStorage.setItem("UInify-auth", JSON.stringify(this.authData));
+    },
+    storageAuthSaveGoogle(googleUserInfo, credential) {
+      const authData = {
+        user: {
+          id: googleUserInfo.sub,
+          username: googleUserInfo.email,
+          email: googleUserInfo.email,
+          name: googleUserInfo.name,
+          picture: googleUserInfo.picture,
+          given_name: googleUserInfo.given_name,
+          family_name: googleUserInfo.family_name,
+        },
+        authType: 'google',
+        googleCredential: credential,
+      };
+      this.authData = authData;
       localStorage.setItem("UInify-auth", JSON.stringify(this.authData));
     },
     storageAuthRemove() {
