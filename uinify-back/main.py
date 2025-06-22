@@ -225,8 +225,6 @@ def components_get():
 def component_post():
     r = request.get_json()
 
-    print(generate_component_info(r["code"]))
-
     required_keys = ["user_id", "title", "framework", "category", "inputType", "code"]
     for key in required_keys:
         if key not in r:
@@ -332,7 +330,6 @@ def component_info():
     r = request.get_json()
     info = generate_component_info(r["code"])
     return jsonify(info), 200
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

@@ -10,8 +10,8 @@ class Component(BaseModel):
     framework: str
     category: str
     tags: str
-    input_type: str
-    include_tailwind: bool
+    inputType: str
+    includeTailwind: bool
     code: str
 
 
@@ -27,8 +27,8 @@ META_PROMPT = """Given the following code snippet, analyze its structure and fun
     "framework": "<one of: Vue 3, React, HTML/CSS/JS>",
     "category": "<one of: UI Elements, Forms, Navigation, Cards, Data Display, Layout>",
     "tags": "<comma-separated list of lowercase keywords without spaces between>",
-    "input_type": "<either: HTML or Vue SFC>",
-    "include_tailwind": <true or false>,
+    "inputType": "<either: HTML or Vue SFC>",
+    "includeTailwind": <true or false>,
     "code": "<the original code snippet>"
 }
 
