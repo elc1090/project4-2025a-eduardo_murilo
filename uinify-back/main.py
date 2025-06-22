@@ -1,7 +1,17 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, Text, Boolean, create_engine
+from sqlalchemy import (
+    Column,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Boolean,
+    DateTime,
+    create_engine,
+    event,
+    func,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from sqlalchemy import event
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -43,12 +53,18 @@ class Component(Base):
     inputType = Column(String(50), nullable=False)  # html, vue
     includeTailwind = Column(Boolean, nullable=False, default=False)
     code = Column(Text(), nullable=False)  # actual content
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    user = relationship("User", back_populates="components")
 
     def __repr__(self):
         return f"<Component(title='{self.title}', framework='{self.framework}', category='{self.category}')>"
 
     def to_dict(self):
-        # Convert tags string back to list for frontend compatibility
         tags_list = []
         if self.tags:
             tags_list = [tag.strip() for tag in self.tags.split(",") if tag.strip()]
@@ -63,6 +79,8 @@ class Component(Base):
             "inputType": self.inputType,
             "includeTailwind": self.includeTailwind,
             "code": self.code,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
         }
 
 
@@ -72,36 +90,23 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(128), unique=True, nullable=False)
     password = Column(String(128), nullable=False)
-
-    components = relationship(
-        "UserComponent",
-        back_populates="user",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    components = relationship("Component", cascade="all, delete", back_populates="user")
 
     def __repr__(self):
         return f"<User(name='{self.username}', password='{self.password}')>"
 
     def to_dict(self):
-        return {"id": self.id, "username": self.username}
-
-
-class UserComponent(Base):
-    __tablename__ = "users_components"
-
-    user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    component_id = Column(
-        Integer, ForeignKey("components.id", ondelete="CASCADE"), primary_key=True
-    )
-
-    user = relationship("User", back_populates="components")
-    component = relationship("Component")
-
-    def __repr__(self):
-        return f"<UserComponent(user_id='{self.user_id}', component_id='{self.component_id}')>"
+        return {
+            "id": self.id,
+            "username": self.username,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
 
 
 Base.metadata.create_all(engine)
@@ -200,23 +205,24 @@ def user_components_get(id):
             user = session.get(User, id)
             if user is None:
                 return jsonify(error=f"User '{id}' not found."), 404
-
-            # Get the actual Component objects through the UserComponent relationship
-            user_components = user.components  # This returns UserComponent objects
-            components = [
-                uc.component for uc in user_components
-            ]  # Get the actual Component objects
-            return jsonify([component.to_dict() for component in components]), 200
+            return jsonify([component.to_dict() for component in user.components]), 200
         except Exception as e:
             return jsonify(error=str(e)), 500
 
 
 @app.route("/components", methods=["GET"])
 def components_get():
+    with_user = request.args.get("with_user", "false").lower() == "true"
     with Session() as session:
         try:
-            components = session.query(Component).all()
-            return jsonify([component.to_dict() for component in components]), 200
+            components_db = session.query(Component).all()
+            components = [component_db.to_dict() for component_db in components_db]
+
+            if with_user:
+                for component, component_db in zip(components, components_db):
+                    component["user"] = component_db.user.username
+
+            return jsonify(components), 200
         except Exception as e:
             return jsonify(error=str(e)), 500
 
@@ -232,7 +238,6 @@ def component_post():
 
     with Session() as session:
         try:
-            # Handle tags - convert list to comma-separated string if needed
             tags = r.get("tags", "")
             if isinstance(tags, list):
                 tags = ", ".join(tags)
@@ -246,14 +251,9 @@ def component_post():
                 inputType=r["inputType"],
                 includeTailwind=r.get("includeTailwind", False),
                 code=r["code"],
+                user_id=r["user_id"],
             )
             session.add(component)
-            session.flush()
-
-            user_component = UserComponent(
-                user_id=r["user_id"], component_id=component.id
-            )
-            session.add(user_component)
             session.commit()
             return jsonify(component.to_dict()), 200
         except Exception as e:
@@ -330,6 +330,7 @@ def component_info():
     r = request.get_json()
     info = generate_component_info(r["code"])
     return jsonify(info), 200
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
