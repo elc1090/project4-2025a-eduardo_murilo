@@ -212,15 +212,13 @@ def user_components_get(id):
 
 @app.route("/components", methods=["GET"])
 def components_get():
-    with_user = request.args.get("with_user", "false").lower() == "true"
     with Session() as session:
         try:
             components_db = session.query(Component).all()
             components = [component_db.to_dict() for component_db in components_db]
 
-            if with_user:
-                for component, component_db in zip(components, components_db):
-                    component["user"] = component_db.user.username
+            for component, component_db in zip(components, components_db):
+                component["author"] = component_db.user.username
 
             return jsonify(components), 200
         except Exception as e:
