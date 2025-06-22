@@ -17,3 +17,4 @@
 | GET    | `/component/<id>`       | Get component by ID         |
 | PUT    | `/component/<id>`       | Full update of a component  |
 | DELETE | `/component/<id>`       | Delete component by ID      |
+| POST   | `/component/info`       | Suggest information         |

@@ -5,14 +5,17 @@ from sqlalchemy import event
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from dotenv import load_dotenv
+
+from ai import generate_component_info
+
+load_dotenv()
 
 app = Flask(__name__)
 
-# Enable CORS for all routes
 CORS(app)
 
-# engine = create_engine("sqlite:///:memory:", echo=True)
-engine = create_engine("sqlite:///uinify.db", echo=True)
+engine = create_engine("sqlite:///uinify.db", echo=False)
 conn = engine.connect()
 
 Session = sessionmaker(bind=engine)
@@ -33,11 +36,13 @@ class Component(Base):
     title = Column(String(256), nullable=False)
     description = Column(Text(), nullable=True)
     framework = Column(String(50), nullable=False)  # vue, react, html/css
-    category = Column(String(50), nullable=False)   # ui, forms, navigation, cards, data, layout
-    tags = Column(Text(), nullable=True)            # Separate tags with commas
+    category = Column(
+        String(50), nullable=False
+    )  # ui, forms, navigation, cards, data, layout
+    tags = Column(Text(), nullable=True)  # Separate tags with commas
     inputType = Column(String(50), nullable=False)  # html, vue
     includeTailwind = Column(Boolean, nullable=False, default=False)
-    code = Column(Text(), nullable=False)           # actual content
+    code = Column(Text(), nullable=False)  # actual content
 
     def __repr__(self):
         return f"<Component(title='{self.title}', framework='{self.framework}', category='{self.category}')>"
@@ -57,7 +62,7 @@ class Component(Base):
             "tags": tags_list,
             "inputType": self.inputType,
             "includeTailwind": self.includeTailwind,
-            "code": self.code
+            "code": self.code,
         }
 
 
@@ -122,17 +127,16 @@ def login():
 
     with Session() as session:
         try:
-            # Check if user exists by username
-            existing_user = session.query(User).filter_by(username=r["username"]).first()
+            existing_user = (
+                session.query(User).filter_by(username=r["username"]).first()
+            )
 
             if existing_user is None:
-                # Username doesn't exist, create new user
                 new_user = User(username=r["username"], password=r["password"])
                 session.add(new_user)
                 session.commit()
                 return jsonify(new_user.to_dict()), 200
             else:
-                # Username exists, validate password
                 if existing_user.password == r["password"]:
                     return jsonify(existing_user.to_dict()), 200
                 else:
@@ -199,7 +203,9 @@ def user_components_get(id):
 
             # Get the actual Component objects through the UserComponent relationship
             user_components = user.components  # This returns UserComponent objects
-            components = [uc.component for uc in user_components]  # Get the actual Component objects
+            components = [
+                uc.component for uc in user_components
+            ]  # Get the actual Component objects
             return jsonify([component.to_dict() for component in components]), 200
         except Exception as e:
             return jsonify(error=str(e)), 500
@@ -218,6 +224,8 @@ def components_get():
 @app.route("/component", methods=["POST"])
 def component_post():
     r = request.get_json()
+
+    print(generate_component_info(r["code"]))
 
     required_keys = ["user_id", "title", "framework", "category", "inputType", "code"]
     for key in required_keys:
@@ -239,7 +247,7 @@ def component_post():
                 tags=tags,
                 inputType=r["inputType"],
                 includeTailwind=r.get("includeTailwind", False),
-                code=r["code"]
+                code=r["code"],
             )
             session.add(component)
             session.flush()
@@ -317,6 +325,13 @@ def component_delete(id):
         except Exception as e:
             session.rollback()
             return jsonify(error=str(e)), 500
+
+
+@app.route("/component/info", methods=["POST"])
+def component_info():
+    r = request.get_json()
+    info = generate_component_info(r["code"])
+    return jsonify(info), 200
 
 
 if __name__ == "__main__":
