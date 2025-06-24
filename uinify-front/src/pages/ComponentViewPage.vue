@@ -14,28 +14,29 @@
             />
             <div>
               <h1 class="text-2xl font-bold text-gray-900">
-                {{ component?.title || component?.name || 'Component View' }}
+                {{ component?.title || component?.name || "Component View" }}
               </h1>
               <p class="text-gray-600 mt-1">
-                {{ component?.description || 'No description available' }}
+                {{ component?.description || "No description available" }}
               </p>
             </div>
           </div>
-          
+
           <div class="flex items-center space-x-3">
-            <q-chip 
-              :color="getStatusColor(component?.status)" 
-              text-color="white" 
+            <q-chip
+              :color="getStatusColor(component?.status)"
+              text-color="white"
               :label="component?.status || 'Unknown'"
               size="md"
             />
-            <q-chip 
-              color="blue" 
-              text-color="white" 
+            <q-chip
+              color="blue"
+              text-color="white"
               :label="component?.framework || 'Unknown'"
               size="md"
             />
             <q-btn
+              v-if="canEdit"
               color="orange"
               icon="edit"
               label="Edit"
@@ -57,7 +58,9 @@
     <div v-else-if="error" class="flex items-center justify-center py-20">
       <div class="text-center">
         <q-icon name="error_outline" size="64px" class="text-red-500 mb-4" />
-        <h3 class="text-xl font-semibold text-gray-900 mb-2">Error Loading Component</h3>
+        <h3 class="text-xl font-semibold text-gray-900 mb-2">
+          Error Loading Component
+        </h3>
         <p class="text-gray-600 mb-4">{{ error }}</p>
         <q-btn
           color="primary"
@@ -71,30 +74,38 @@
     <!-- Component Content -->
     <div v-else-if="component" class="max-w-7xl mx-auto px-4 lg:px-6 py-6">
       <!-- Component Metadata -->
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Component Information</h2>
+      <div
+        class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
+      >
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">
+          Component Information
+        </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label class="text-sm font-medium text-gray-500">Framework</label>
-            <p class="text-gray-900">{{ component.framework || 'N/A' }}</p>
+            <p class="text-gray-900">{{ component.framework || "N/A" }}</p>
           </div>
           <div>
             <label class="text-sm font-medium text-gray-500">Category</label>
-            <p class="text-gray-900">{{ component.category || 'N/A' }}</p>
+            <p class="text-gray-900">{{ component.category || "N/A" }}</p>
           </div>
           <div>
             <label class="text-sm font-medium text-gray-500">Created</label>
             <p class="text-gray-900">{{ formatDate(component.created_at) }}</p>
           </div>
           <div>
-            <label class="text-sm font-medium text-gray-500">Last Updated</label>
+            <label class="text-sm font-medium text-gray-500"
+              >Last Updated</label
+            >
             <p class="text-gray-900">{{ formatDate(component.updated_at) }}</p>
           </div>
         </div>
-        
+
         <!-- Tags -->
         <div v-if="component.tags && component.tags.length > 0" class="mt-4">
-          <label class="text-sm font-medium text-gray-500 block mb-2">Tags</label>
+          <label class="text-sm font-medium text-gray-500 block mb-2"
+            >Tags</label
+          >
           <div class="flex flex-wrap gap-2">
             <q-chip
               v-for="tag in component.tags"
@@ -109,7 +120,9 @@
       </div>
 
       <!-- Component Viewer -->
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div
+        class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
+      >
         <ComponentViewer
           :content="component.code || defaultComponentCode"
           :framework="component.inputType || component.framework || 'vue'"
@@ -123,8 +136,12 @@
     <div v-else class="flex items-center justify-center py-20">
       <div class="text-center">
         <q-icon name="search_off" size="64px" class="text-gray-400 mb-4" />
-        <h3 class="text-xl font-semibold text-gray-900 mb-2">Component Not Found</h3>
-        <p class="text-gray-600 mb-4">The component you're looking for doesn't exist or has been removed.</p>
+        <h3 class="text-xl font-semibold text-gray-900 mb-2">
+          Component Not Found
+        </h3>
+        <p class="text-gray-600 mb-4">
+          The component you're looking for doesn't exist or has been removed.
+        </p>
         <q-btn
           color="primary"
           icon="arrow_back"
@@ -137,28 +154,30 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
-import { getComponentById } from 'src/services/DefaultService'
-import ComponentViewer from 'src/components/ComponentViewer.vue'
+import { ref, onMounted, computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useQuasar } from "quasar";
+import { getComponentById } from "src/services/DefaultService";
+import ComponentViewer from "src/components/ComponentViewer.vue";
+import { useAuthStore } from "stores/auth";
 
 // Props
 const props = defineProps({
   id: {
     type: String,
-    required: true
-  }
-})
+    required: true,
+  },
+});
 
-const $q = useQuasar()
-const route = useRoute()
-const router = useRouter()
+const $q = useQuasar();
+const route = useRoute();
+const router = useRouter();
+const auth = useAuthStore();
 
 // Reactive data
-const component = ref(null)
-const loading = ref(true)
-const error = ref(null)
+const component = ref(null);
+const loading = ref(true);
+const error = ref(null);
 
 // Default component code for fallback
 const defaultComponentCode = `<template>
@@ -174,65 +193,75 @@ const defaultComponentCode = `<template>
 <script setup>
 import { ref } from 'vue'
 const message = ref('Hello from component!')
-<\/script>`
+<\/script>`;
 
 // Computed
 const componentId = computed(() => {
-  return props.id || route.params.id
-})
+  return props.id || route.params.id;
+});
+
+// Check if current user can edit this component
+const canEdit = computed(() => {
+  const currentUserId = auth.authData?.user?.id;
+  return (
+    currentUserId &&
+    component.value &&
+    component.value.user_id === currentUserId
+  );
+});
 
 // Methods
 const fetchComponent = async () => {
   if (!componentId.value) {
-    error.value = 'No component ID provided'
-    loading.value = false
-    return
+    error.value = "No component ID provided";
+    loading.value = false;
+    return;
   }
 
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
 
   try {
-    const { data } = await getComponentById(componentId.value)
-    component.value = data
+    const { data } = await getComponentById(componentId.value);
+    component.value = data;
   } catch (err) {
-    console.error('Error fetching component:', err)
-    error.value = err.response?.data?.message || 'Failed to load component'
+    console.error("Error fetching component:", err);
+    error.value = err.response?.data?.message || "Failed to load component";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const formatDate = (dateString) => {
-  if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleDateString()
-}
+  if (!dateString) return "N/A";
+  return new Date(dateString).toLocaleDateString();
+};
 
 const getStatusColor = (status) => {
   switch (status?.toLowerCase()) {
-    case 'active':
-      return 'positive'
-    case 'draft':
-      return 'warning'
-    case 'archived':
-      return 'negative'
+    case "active":
+      return "positive";
+    case "draft":
+      return "warning";
+    case "archived":
+      return "negative";
     default:
-      return 'grey'
+      return "grey";
   }
-}
+};
 
 const editComponent = () => {
-  router.push(`/components/${componentId.value}/edit`)
-}
+  router.push(`/components/${componentId.value}/edit`);
+};
 
 const goBack = () => {
-  router.back()
-}
+  router.back();
+};
 
 // Lifecycle
 onMounted(() => {
-  fetchComponent()
-})
+  fetchComponent();
+});
 </script>
 
 <style scoped>

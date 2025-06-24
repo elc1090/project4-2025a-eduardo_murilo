@@ -683,11 +683,7 @@ const getStatusColor = (status) => {
 const canEdit = (component) => {
   // Users can only edit their own components
   const currentUserId = auth.authData?.user?.id;
-  return (
-    currentUserId &&
-    (component.user_id === currentUserId ||
-      component.author_id === currentUserId)
-  );
+  return currentUserId && component.user_id === currentUserId;
 };
 
 const viewComponent = (component) => {

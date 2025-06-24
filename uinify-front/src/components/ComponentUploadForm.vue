@@ -159,7 +159,7 @@
           @click="resetForm"
         />
         <q-btn
-          label="Upload Component"
+          :label="props.isEditMode ? 'Update Component' : 'Upload Component'"
           type="submit"
           color="primary"
           :loading="isSubmitting"
@@ -271,15 +271,37 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted } from "vue";
 import { useQuasar } from "quasar";
+import { useRouter } from "vue-router";
 import ComponentViewer from "./ComponentViewer.vue";
 import MonacoEditor from "./MonacoEditor.vue";
-import { saveComponent, getComponentInfo } from "src/services/DefaultService";
+import {
+  saveComponent,
+  getComponentInfo,
+  updateComponent,
+} from "src/services/DefaultService";
 import { useAuthStore } from "stores/auth";
+
+// Props
+const props = defineProps({
+  componentData: {
+    type: Object,
+    default: null,
+  },
+  isEditMode: {
+    type: Boolean,
+    default: false,
+  },
+  componentId: {
+    type: [String, Number],
+    default: null,
+  },
+});
 
 const $q = useQuasar();
 const auth = useAuthStore();
+const router = useRouter();
 
 const formData = ref({
   title: "",
@@ -631,6 +653,28 @@ onMounted(() => {
   };
 };
 
+// Load component data when in edit mode
+const loadComponentData = () => {
+  if (props.componentData) {
+    formData.value = {
+      title: props.componentData.title || "",
+      description: props.componentData.description || "",
+      framework: props.componentData.framework || "vue",
+      category: props.componentData.category || "ui",
+      tags: "",
+      tagsArray: Array.isArray(props.componentData.tags)
+        ? props.componentData.tags
+        : props.componentData.tags
+        ? props.componentData.tags.split(",").map((t) => t.trim())
+        : [],
+      code: props.componentData.code || "",
+      inputType: props.componentData.inputType || "vue",
+      includeTailwind: props.componentData.includeTailwind !== false,
+      includeQuasar: props.componentData.includeQuasar || false,
+    };
+  }
+};
+
 const handleSubmit = async () => {
   // Validate form before submitting
   const validationErrors = validateForm();
@@ -657,34 +701,49 @@ const handleSubmit = async () => {
       inputType: formData.value.inputType,
       includeTailwind: formData.value.includeTailwind,
       includeQuasar: formData.value.includeQuasar,
-      user_id: auth.authData.user.id,
     };
+
+    // Add user_id only for new components
+    if (!props.isEditMode) {
+      payload.user_id = auth.authData.user.id;
+    }
 
     console.log("Sending payload to backend:", payload);
 
-    // Call the backend API
-    const response = await saveComponent(payload);
+    // Call the appropriate API based on mode
+    const response = props.isEditMode
+      ? await updateComponent(props.componentId, payload)
+      : await saveComponent(payload);
 
     console.log("Component saved successfully:", response.data);
 
     // Show success message
     $q.notify({
       type: "positive",
-      message: "Component uploaded successfully!",
+      message: props.isEditMode
+        ? "Component updated successfully!"
+        : "Component uploaded successfully!",
       position: "top",
     });
 
-    // Reset the form after successful upload
-    resetForm();
+    // Navigate back to dashboard or component view
+    if (props.isEditMode) {
+      router.push(`/components/${props.componentId}`);
+    } else {
+      // Reset the form after successful upload
+      resetForm();
+    }
   } catch (error) {
-    console.error("Error uploading component:", error);
+    console.error("Error saving component:", error);
 
     // Show error message
     $q.notify({
       type: "negative",
       message:
         error.response?.data?.message ||
-        "Failed to upload component. Please try again.",
+        `Failed to ${
+          props.isEditMode ? "update" : "upload"
+        } component. Please try again.`,
       position: "top",
     });
   } finally {
@@ -710,6 +769,24 @@ watch(
     // This watch is here in case we need to add more logic in the future
   }
 );
+
+// Watch for component data changes (when props change)
+watch(
+  () => props.componentData,
+  () => {
+    if (props.componentData) {
+      loadComponentData();
+    }
+  },
+  { immediate: true }
+);
+
+// Load component data on mount if in edit mode
+onMounted(() => {
+  if (props.isEditMode && props.componentData) {
+    loadComponentData();
+  }
+});
 </script>
 
 <style scoped>
