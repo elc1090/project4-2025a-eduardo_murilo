@@ -20,3 +20,8 @@ export const updateComponent = (id, payload) =>
 export const deleteComponent = (id) => axiosService.delete(`/component/${id}`);
 
 export const login = (payload) => axiosService.post("/login", payload);
+
+export const googleAuth = (payload) => axiosService.post("/auth/google", payload);
+
+export const getComponentInfo = (code) =>
+  axiosService.post("/component/info", { code });

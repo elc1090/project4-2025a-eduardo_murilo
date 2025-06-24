@@ -45,16 +45,18 @@ export const useAuthStore = defineStore("UInify-auth", {
       this.authData = auth;
       localStorage.setItem("UInify-auth", JSON.stringify(this.authData));
     },
-    storageAuthSaveGoogle(googleUserInfo, credential) {
+    storageAuthSaveGoogle(googleUserInfo, credential, backendUserData = null) {
       const authData = {
         user: {
-          id: googleUserInfo.sub,
+          id: backendUserData?.id || googleUserInfo.sub, // Use backend ID if available
           username: googleUserInfo.email,
           email: googleUserInfo.email,
           name: googleUserInfo.name,
           picture: googleUserInfo.picture,
           given_name: googleUserInfo.given_name,
           family_name: googleUserInfo.family_name,
+          // Include backend user data if available
+          ...(backendUserData && { backendId: backendUserData.id }),
         },
         authType: 'google',
         googleCredential: credential,

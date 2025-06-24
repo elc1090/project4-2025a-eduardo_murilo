@@ -330,5 +330,43 @@ def component_info():
     return jsonify(info), 200
 
 
+@app.route("/auth/google", methods=["POST"])
+def google_auth():
+    r = request.get_json()
+
+    required_keys = ["email", "name", "google_id"]
+    for key in required_keys:
+        if key not in r:
+            return jsonify(error=f"Missing '{key}' key."), 400
+
+    with Session() as session:
+        try:
+            # Try to find existing user by email (Google users use email as username)
+            existing_user = session.query(User).filter_by(username=r["email"]).first()
+
+            if existing_user is None:
+                # Create new user for Google authentication
+                # Use email as username and a placeholder password (since Google handles auth)
+                new_user = User(
+                    username=r["email"],
+                    password=f"google_auth_{r['google_id']}"  # Placeholder password
+                )
+                session.add(new_user)
+                session.commit()
+
+                user_data = new_user.to_dict()
+                user_data["name"] = r["name"]  # Add Google name to response
+                return jsonify(user_data), 200
+            else:
+                # Return existing user
+                user_data = existing_user.to_dict()
+                user_data["name"] = r["name"]  # Add Google name to response
+                return jsonify(user_data), 200
+
+        except Exception as e:
+            session.rollback()
+            return jsonify(error=str(e)), 500
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

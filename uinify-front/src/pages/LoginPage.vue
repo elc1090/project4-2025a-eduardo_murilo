@@ -5,7 +5,10 @@
 
       <!-- Google Login Section -->
       <div class="mb-6">
-        <div id="google-signin-button" class="w-full flex justify-center mb-4"></div>
+        <div
+          id="google-signin-button"
+          class="w-full flex justify-center mb-4"
+        ></div>
         <div class="text-center text-gray-500 text-sm mb-4">
           <span class="bg-white px-2">ou</span>
         </div>
@@ -35,7 +38,7 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "stores/auth";
-import { login } from "src/services/DefaultService";
+import { login, googleAuth } from "src/services/DefaultService";
 import { useQuasar } from "quasar";
 import { googleAuthService } from "src/services/GoogleAuthService";
 
@@ -65,7 +68,7 @@ const handleLogin = async () => {
     const { data } = await login(form.value);
     auth.storageAuthSave({
       user: data,
-      authType: 'traditional',
+      authType: "traditional",
     });
     $q.notify({
       type: "positive",
@@ -84,17 +87,36 @@ const handleLogin = async () => {
 };
 
 // Google login success handler
-const handleGoogleLoginSuccess = (event) => {
+const handleGoogleLoginSuccess = async (event) => {
   const { userInfo, credential } = event.detail;
 
-  auth.storageAuthSaveGoogle(userInfo, credential);
+  try {
+    // Call backend to create/find user
+    const { data } = await googleAuth({
+      email: userInfo.email,
+      name: userInfo.name,
+      google_id: userInfo.sub,
+      picture: userInfo.picture,
+      given_name: userInfo.given_name,
+      family_name: userInfo.family_name,
+    });
 
-  $q.notify({
-    type: "positive",
-    message: `Welcome, ${userInfo.name}!`,
-  });
+    // Save auth data with backend user ID
+    auth.storageAuthSaveGoogle(userInfo, credential, data);
 
-  router.push("/dashboard");
+    $q.notify({
+      type: "positive",
+      message: `Welcome, ${userInfo.name}!`,
+    });
+
+    router.push("/dashboard");
+  } catch (error) {
+    console.error("Error during Google authentication:", error);
+    $q.notify({
+      type: "negative",
+      message: "Failed to authenticate with Google. Please try again.",
+    });
+  }
 };
 
 // Google login error handler

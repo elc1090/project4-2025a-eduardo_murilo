@@ -90,14 +90,28 @@
             class="editor-toolbar bg-gray-100 px-4 py-2 flex justify-between items-center"
           >
             <span class="text-sm font-medium">Component Code *</span>
-            <q-btn
-              flat
-              dense
-              icon="content_copy"
-              label="Copy"
-              @click="copyToClipboard"
-              size="sm"
-            />
+            <div class="flex items-center space-x-2">
+              <q-btn
+                flat
+                dense
+                icon="auto_fix_high"
+                label="Auto-preencher"
+                @click="autoFillFromCode"
+                :disabled="!canAutoFill"
+                :loading="isAutoFilling"
+                size="sm"
+                color="primary"
+                title="Gerar informações automaticamente a partir do código"
+              />
+              <q-btn
+                flat
+                dense
+                icon="content_copy"
+                label="Copy"
+                @click="copyToClipboard"
+                size="sm"
+              />
+            </div>
           </div>
           <MonacoEditor
             v-model="formData.code"
@@ -152,15 +166,116 @@
         />
       </div>
     </q-form>
+
+    <!-- Auto-fill confirmation dialog -->
+    <q-dialog v-model="showAutoFillDialog" persistent>
+      <q-card style="min-width: 500px">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Informações Detectadas</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section>
+          <div class="text-body2 text-grey-7 q-mb-md">
+            As seguintes informações foram detectadas automaticamente no seu
+            código:
+          </div>
+
+          <div v-if="autoFillData" class="q-gutter-sm">
+            <div v-if="autoFillData.title" class="row">
+              <div class="col-4 text-weight-medium">Título:</div>
+              <div class="col-8">{{ autoFillData.title }}</div>
+            </div>
+
+            <div v-if="autoFillData.description" class="row">
+              <div class="col-4 text-weight-medium">Descrição:</div>
+              <div class="col-8">{{ autoFillData.description }}</div>
+            </div>
+
+            <div v-if="autoFillData.framework" class="row">
+              <div class="col-4 text-weight-medium">Framework:</div>
+              <div class="col-8">{{ autoFillData.framework }}</div>
+            </div>
+
+            <div v-if="autoFillData.category" class="row">
+              <div class="col-4 text-weight-medium">Categoria:</div>
+              <div class="col-8">{{ autoFillData.category }}</div>
+            </div>
+
+            <div v-if="autoFillData.tags" class="row">
+              <div class="col-4 text-weight-medium">Tags:</div>
+              <div class="col-8">
+                <q-chip
+                  v-for="tag in typeof autoFillData.tags === 'string'
+                    ? autoFillData.tags.split(',')
+                    : autoFillData.tags"
+                  :key="tag"
+                  size="sm"
+                  color="primary"
+                  text-color="white"
+                >
+                  {{ tag.trim() }}
+                </q-chip>
+              </div>
+            </div>
+
+            <div v-if="autoFillData.inputType" class="row">
+              <div class="col-4 text-weight-medium">Tipo:</div>
+              <div class="col-8">{{ autoFillData.inputType }}</div>
+            </div>
+
+            <div
+              v-if="typeof autoFillData.includeTailwind === 'boolean'"
+              class="row"
+            >
+              <div class="col-4 text-weight-medium">Tailwind CSS:</div>
+              <div class="col-8">
+                <q-icon
+                  :name="
+                    autoFillData.includeTailwind ? 'check_circle' : 'cancel'
+                  "
+                  :color="
+                    autoFillData.includeTailwind ? 'positive' : 'negative'
+                  "
+                />
+                {{ autoFillData.includeTailwind ? "Sim" : "Não" }}
+              </div>
+            </div>
+          </div>
+
+          <q-banner
+            v-if="hasExistingData"
+            class="bg-orange-1 text-orange-8 q-mt-md"
+            rounded
+          >
+            <template v-slot:avatar>
+              <q-icon name="warning" color="orange" />
+            </template>
+            Alguns campos já possuem dados. Confirmar irá sobrescrever as
+            informações existentes.
+          </q-banner>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="grey" v-close-popup />
+          <q-btn
+            label="Confirmar e Aplicar"
+            color="primary"
+            @click="applyAutoFillData"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { useQuasar } from "quasar";
 import ComponentViewer from "./ComponentViewer.vue";
 import MonacoEditor from "./MonacoEditor.vue";
-import { saveComponent } from "src/services/DefaultService";
+import { saveComponent, getComponentInfo } from "src/services/DefaultService";
 import { useAuthStore } from "stores/auth";
 
 const $q = useQuasar();
@@ -270,6 +385,23 @@ const categoryOptions = [
 ];
 
 const isSubmitting = ref(false);
+const isAutoFilling = ref(false);
+const showAutoFillDialog = ref(false);
+const autoFillData = ref(null);
+
+// Computed property to check if auto-fill button should be enabled
+const canAutoFill = computed(() => {
+  return formData.value.code.trim().length > 50; // Minimum code length for meaningful analysis
+});
+
+// Computed property to check if form has existing data that would be overwritten
+const hasExistingData = computed(() => {
+  return !!(
+    formData.value.title.trim() ||
+    formData.value.description.trim() ||
+    formData.value.tagsArray.length > 0
+  );
+});
 
 const addTag = () => {
   if (formData.value.tags.trim()) {
@@ -300,6 +432,91 @@ const copyToClipboard = async () => {
       message: "Failed to copy code",
     });
   }
+};
+
+const autoFillFromCode = async () => {
+  if (!canAutoFill.value) {
+    $q.notify({
+      type: "warning",
+      message: "Adicione mais código para usar o auto-preenchimento",
+    });
+    return;
+  }
+
+  isAutoFilling.value = true;
+
+  try {
+    const response = await getComponentInfo(formData.value.code);
+    autoFillData.value = response.data;
+    showAutoFillDialog.value = true;
+  } catch (error) {
+    console.error("Error getting component info:", error);
+    $q.notify({
+      type: "negative",
+      message: "Erro ao analisar o código. Tente novamente.",
+    });
+  } finally {
+    isAutoFilling.value = false;
+  }
+};
+
+const applyAutoFillData = () => {
+  if (!autoFillData.value) return;
+
+  const data = autoFillData.value;
+
+  // Apply the auto-filled data to form
+  if (data.title) formData.value.title = data.title;
+  if (data.description) formData.value.description = data.description;
+  if (data.framework) {
+    // Find matching framework option
+    const frameworkOption = frameworkOptions.find(
+      (opt) =>
+        opt.value === data.framework.toLowerCase() ||
+        opt.label.toLowerCase().includes(data.framework.toLowerCase())
+    );
+    if (frameworkOption) {
+      formData.value.framework = frameworkOption.value;
+    }
+  }
+  if (data.category) {
+    // Find matching category option
+    const categoryOption = categoryOptions.find(
+      (opt) =>
+        opt.value === data.category.toLowerCase() ||
+        opt.label.toLowerCase().includes(data.category.toLowerCase())
+    );
+    if (categoryOption) {
+      formData.value.category = categoryOption.value;
+    }
+  }
+  if (data.tags) {
+    // Handle tags - convert string to array
+    const tagsArray =
+      typeof data.tags === "string"
+        ? data.tags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter((tag) => tag)
+        : data.tags;
+    formData.value.tagsArray = [
+      ...new Set([...formData.value.tagsArray, ...tagsArray]),
+    ];
+  }
+  if (data.inputType) {
+    formData.value.inputType =
+      data.inputType.toLowerCase() === "vue sfc" ? "vue" : "html";
+  }
+  if (typeof data.includeTailwind === "boolean") {
+    formData.value.includeTailwind = data.includeTailwind;
+  }
+
+  showAutoFillDialog.value = false;
+
+  $q.notify({
+    type: "positive",
+    message: "Informações preenchidas automaticamente!",
+  });
 };
 
 const validateForm = () => {
